@@ -223,7 +223,7 @@ document.getElementById('btnStart').onclick = () => {
   };
 
   // Asynchronously save student profile to Neon DB backend (non-blocking)
-  fetch('http://localhost:3000/api/students', {
+  fetch('/api/students', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(state.student)
@@ -1183,7 +1183,7 @@ Generate the final career evaluation report now. Make sure the 'candidateSummary
     state.report = report;
 
     // Asynchronously save complete interview report to Neon DB backend (non-blocking)
-    fetch('http://localhost:3000/api/save-interview', {
+    fetch('/api/save-interview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
