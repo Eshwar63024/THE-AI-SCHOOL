@@ -1,0 +1,16 @@
+{
+  "name": "ai-career-mentor",
+  "version": "1.0.0",
+  "description": "AI Career Mentor with Neon DB Serverless Postgres",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

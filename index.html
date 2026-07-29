@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The AI School — AI Mentor</title>
+<link rel="icon" type="image/png" href="assets/favicon.png?v=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div class="brand">
+    <div class="brand-mark">
+      <img src="assets/logo.png" alt="The AI School" class="logo-img">
+    </div>
+    <button class="settings-btn hidden" id="apiKeyBtn">⚙ API key</button>
+  </div>
+
+  <div class="pathway">
+    <div class="pathway-track" id="pathwayTrack">
+      <div class="pathway-line"><div class="pathway-line-fill" id="pathwayFill"></div></div>
+      <div class="pathway-node" data-step="1"><div class="ring">1</div><div class="label">Register</div></div>
+      <div class="pathway-node" data-step="2"><div class="ring">2</div><div class="label">Conversation</div></div>
+      <div class="pathway-node" data-step="3"><div class="ring">3</div><div class="label">Resume</div></div>
+      <div class="pathway-node" data-step="4"><div class="ring">4</div><div class="label">Assessment</div></div>
+      <div class="pathway-node" data-step="5"><div class="ring">5</div><div class="label">Report</div></div>
+    </div>
+  </div>
+
+  <!-- STEP 1: REGISTRATION -->
+  <section class="panel" id="step1">
+    <div class="panel-eyebrow">Step 1 — Before we begin</div>
+    <h2>Let's get you registered</h2>
+    <p class="lede">A few details so your mentor knows who they're speaking with. This takes less than a minute.</p>
+    <div class="form-grid">
+      <div class="field" id="f-name">
+        <label for="in-name">Full name</label>
+        <input id="in-name" type="text" placeholder="e.g. Ananya Rao">
+        <div class="err">Please enter your full name.</div>
+      </div>
+      <div class="field" id="f-email">
+        <label for="in-email">Email address</label>
+        <input id="in-email" type="email" placeholder="you@example.com">
+        <div class="err">Please enter a valid email address.</div>
+      </div>
+      <div class="field" id="f-phone">
+        <label for="in-phone">Phone number</label>
+        <input id="in-phone" type="tel" placeholder="+91 98765 43210">
+        <div class="err">Please enter a valid phone number.</div>
+      </div>
+      <div class="field" id="f-college">
+        <label for="in-college">College / University</label>
+        <input id="in-college" type="text" placeholder="e.g. VNR VJIET">
+        <div class="err">Please enter your college or university.</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnStart">Begin interview →</button>
+    </div>
+  </section>
+
+  <!-- STEP 2: AI CONVERSATION -->
+  <section class="panel hidden" id="step2">
+    <div class="panel-eyebrow">Step 2 — Career conversation</div>
+    
+    <!-- Step 2A: Video Self-Introduction -->
+    <div id="selfIntroContainer">
+      <h2>Video Self-Introduction</h2>
+      <p class="lede">Record a 2-minute video introducing yourself. Share your name, educational background, key technical skills, and career aspirations.</p>
+      
+      <div class="intro-instructions">
+        <h4>💡 Quick Tips for your Introduction:</h4>
+        <ul>
+          <li>Start with your name and college/degree.</li>
+          <li>Highlight 2-3 skills or projects you've worked on.</li>
+          <li>State your career direction (e.g. software engineer, data scientist, placements, research).</li>
+          <li>Speak clearly — your speech will be transcribed in real-time.</li>
+        </ul>
+      </div>
+
+      <div class="video-preview-container">
+        <div class="video-preview-wrapper">
+          <video id="webcamVideo" autoplay muted></video>
+          <div class="video-overlay" id="videoOverlay">
+            <div class="video-overlay-icon">📷</div>
+            <div id="videoOverlayText">Camera is offline</div>
+          </div>
+          <div class="intro-timer-overlay hidden" id="introTimerOverlay">
+            ⏱ <span id="introTimerVal">02:00</span>
+          </div>
+        </div>
+
+        <div class="self-intro-controls">
+          <button class="btn btn-ghost" id="btnToggleCamera">📷 Enable Camera</button>
+          <button class="btn btn-primary" id="btnStartIntro" disabled>🎤 Start Introduction</button>
+          <button class="btn btn-primary hidden" id="btnStopIntro">🛑 Stop & Submit</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="selfIntroText">Real-time Speech-to-Text</label>
+        <textarea id="selfIntroText" class="self-intro-textarea" readonly placeholder="Listening to your speech... Your transcribed words will appear here in real-time."></textarea>
+      </div>
+
+      <!-- Self-Introduction Evaluation Report (Hidden initially) -->
+      <div id="selfIntroReport" class="hidden"></div>
+    </div>
+
+    <!-- Step 2B: Chat Career Conversation -->
+    <div id="chatContainer" class="hidden">
+      <h2>Tell me about yourself</h2>
+      <p class="lede">Speak naturally or type — I'll ask follow-up questions as we go, just like a real conversation.</p>
+      <div class="chat-progress" id="chatProgress">Question 0 of ~5</div>
+      <div class="chat-window" id="chatWindow"></div>
+      <div class="chat-input-row">
+        <button class="icon-btn" id="micBtn" title="Speak your answer">🎤</button>
+        <textarea id="chatInput" placeholder="Type your response…" rows="1"></textarea>
+        <button class="icon-btn send" id="sendBtn" title="Send">➤</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost hidden" id="btnToResume">Continue to resume upload →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: RESUME -->
+  <section class="panel hidden" id="step3">
+    <div class="panel-eyebrow">Step 3 — Resume intelligence</div>
+    <h2>Upload your resume</h2>
+    <p class="lede">PDF or DOCX, up to 10 MB. Your mentor will read it and weave it into the rest of the conversation.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📄</div>
+      <div>Drag & drop your resume here, or click to browse</div>
+      <div class="hint">PDF or DOCX · max 10MB</div>
+      <input type="file" id="fileInput" accept=".pdf,.docx" style="display:none;">
+    </div>
+    <div id="fileChipHolder"></div>
+    <div id="resumeResult"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost hidden" id="btnToAssessment">Continue to technical assessment →</button>
+    </div>
+  </section>
+
+  <!-- STEP 4: ASSESSMENT -->
+  <section class="panel hidden" id="step4">
+    <div class="panel-eyebrow">Step 4 — Technical assessment</div>
+    <h2>Let's check where you stand</h2>
+    <p class="lede">Questions are chosen based on your goals, skills, and resume. There's no fixed time limit — take your time.</p>
+    <div id="assessmentBody"></div>
+  </section>
+
+  <!-- STEP 5: REPORT -->
+  <section class="panel hidden" id="step5">
+    <div id="reportBody"></div>
+  </section>
+
+</div>
+
+<!-- API KEY MODAL -->
+<div class="modal-backdrop hidden" id="apiKeyModal">
+  <div class="modal">
+    <h3>Connect your Groq API key</h3>
+    <p>This app calls the Groq API directly from your browser to run the conversation, parse your resume, and generate your report. Your key is kept only in this browser tab's memory — it is never sent anywhere except <span style="color:var(--pink)">api.groq.com</span>.</p>
+    <div class="field">
+      <label for="in-apikey">API key</label>
+      <input id="in-apikey" type="password" placeholder="gsk_...">
+    </div>
+    <div class="btn-row" style="justify-content:space-between;">
+      <button class="btn btn-ghost" id="btnDemoMode">Try demo mode (no key)</button>
+      <button class="btn btn-primary" id="btnSaveKey">Save & continue</button>
+    </div>
+    <p style="margin-top:14px; margin-bottom:0; font-size:0.78rem;">Demo mode walks through the full app with simulated mentor responses — no API key, no cost, no live API calls.</p>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
