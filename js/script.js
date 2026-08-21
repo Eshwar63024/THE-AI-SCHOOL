@@ -19,7 +19,7 @@ const state = {
   webcamStream: null
 };
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-20b";
 
 /* =========================================================
    GROQ API HELPER (OpenAI-compatible chat completions)
