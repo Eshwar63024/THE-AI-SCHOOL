@@ -105,7 +105,7 @@ app.post('/api/groq', async (req, res) => {
     return res.status(400).json({ success: false, error: "GROQ_API_KEY environment variable is not configured on the server." });
   }
   const { system, messages, maxTokens = 1500, jsonMode = false } = req.body;
-  const MODEL = "llama-3.3-70b-versatile";
+  const MODEL = "openai/gpt-oss-20b";
 
   const chatMessages = system
     ? [{ role: "system", content: system }, ...messages]
