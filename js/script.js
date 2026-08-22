@@ -605,12 +605,13 @@ const sendBtn = document.getElementById('sendBtn');
 const micBtn = document.getElementById('micBtn');
 
 function addMsg(role, text) {
+  if (!text || !text.trim()) return null;
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'mentor' ? 'mentor' : 'student');
   if (role === 'mentor') {
-    div.innerHTML = '<span class="who">MENTOR</span>' + escapeHtml(text);
+    div.innerHTML = '<span class="who">MENTOR</span>' + escapeHtml(text.trim());
   } else {
-    div.textContent = text;
+    div.textContent = text.trim();
   }
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
@@ -701,6 +702,9 @@ function handleMentorTurn(rawText) {
       done = true;
     }
     text = text.replace('[[INTERVIEW_COMPLETE]]', '').trim();
+  }
+  if (!text) {
+    text = "Your conversation is completed. Thank you for sharing! Please click 'Continue to resume upload →' below to proceed.";
   }
   addMsg('mentor', text);
   state.conversation.push({role: 'mentor', text});
