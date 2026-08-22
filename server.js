@@ -100,10 +100,13 @@ app.get('/api/reports', async (req, res) => {
 
 // Route 4: Secure Server-Side Groq API Proxy
 app.post('/api/groq', async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY || req.body.apiKey;
-  if (!apiKey) {
+  const customKey = req.body.apiKey && req.body.apiKey.trim() ? req.body.apiKey.trim() : null;
+  const primaryKey = customKey || process.env.GROQ_API_KEY;
+
+  if (!primaryKey) {
     return res.status(400).json({ success: false, error: "GROQ_API_KEY environment variable is not configured on the server." });
   }
+
   const { system, messages, maxTokens = 1500, jsonMode = false } = req.body;
   const MODEL = "openai/gpt-oss-20b";
 
@@ -111,12 +114,12 @@ app.post('/api/groq', async (req, res) => {
     ? [{ role: "system", content: system }, ...messages]
     : messages;
 
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const makeGroqRequest = async (keyToUse) => {
+    return await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + apiKey
+        "Authorization": "Bearer " + keyToUse
       },
       body: JSON.stringify({
         model: MODEL,
@@ -124,6 +127,16 @@ app.post('/api/groq', async (req, res) => {
         messages: chatMessages
       })
     });
+  };
+
+  try {
+    let response = await makeGroqRequest(primaryKey);
+
+    // If custom user key failed and we have a server env key fallback, retry with server env key
+    if (!response.ok && customKey && process.env.GROQ_API_KEY && customKey !== process.env.GROQ_API_KEY) {
+      console.warn("Custom API key failed, falling back to server GROQ_API_KEY...");
+      response = await makeGroqRequest(process.env.GROQ_API_KEY);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
