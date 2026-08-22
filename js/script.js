@@ -247,65 +247,45 @@ function initSelfIntroStep() {
   document.getElementById('selfIntroReport').innerHTML = '';
   document.getElementById('selfIntroText').value = '';
   
-  const btnToggle = document.getElementById('btnToggleCamera');
   const btnStart = document.getElementById('btnStartIntro');
   const btnStop = document.getElementById('btnStopIntro');
   
-  btnToggle.innerHTML = "📷 Enable Camera";
-  btnToggle.classList.remove('btn-primary');
-  btnToggle.classList.add('btn-ghost');
-  btnToggle.disabled = false;
-  
   btnStart.classList.remove('hidden');
-  btnStart.disabled = true;
+  btnStart.disabled = false;
   btnStart.innerHTML = "🎤 Start Introduction";
   
   btnStop.classList.add('hidden');
   btnStop.disabled = false;
 
-  const overlay = document.getElementById('videoOverlay');
-  overlay.classList.remove('hidden');
-  document.getElementById('videoOverlayText').textContent = "Camera is offline";
-  
-  btnToggle.onclick = toggleCamera;
   btnStart.onclick = startSelfIntro;
   btnStop.onclick = stopSelfIntro;
+
+  // Auto-initialize camera stream seamlessly
+  autoStartCamera();
 }
 
-// Toggle camera stream
-async function toggleCamera() {
+// Auto-start camera stream silently
+async function autoStartCamera() {
   const video = document.getElementById('webcamVideo');
   const overlay = document.getElementById('videoOverlay');
   const overlayText = document.getElementById('videoOverlayText');
-  const btnToggle = document.getElementById('btnToggleCamera');
-  const btnStart = document.getElementById('btnStartIntro');
+  if (!video || !overlay) return;
 
   if (state.webcamStream) {
-    stopCamera();
-    btnToggle.innerHTML = "📷 Enable Camera";
-    btnToggle.classList.remove('btn-primary');
-    btnToggle.classList.add('btn-ghost');
+    overlay.classList.add('hidden');
+    return;
+  }
+
+  try {
+    overlayText.textContent = "Connecting camera...";
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    state.webcamStream = stream;
+    video.srcObject = stream;
+    overlay.classList.add('hidden');
+  } catch (err) {
+    console.warn("Camera preview notice:", err.message);
     overlay.classList.remove('hidden');
-    overlayText.textContent = "Camera is offline";
-    btnStart.disabled = true;
-  } else {
-    try {
-      overlayText.textContent = "Requesting camera access...";
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      state.webcamStream = stream;
-      video.srcObject = stream;
-      overlay.classList.add('hidden');
-      btnToggle.innerHTML = "📷 Disable Camera";
-      btnToggle.classList.remove('btn-ghost');
-      btnToggle.classList.add('btn-primary');
-      btnStart.disabled = false;
-    } catch (err) {
-      console.error(err);
-      overlayText.textContent = "Error: Camera access denied or unavailable";
-      alert("Could not access camera/microphone. Please check permissions and try again, or you can still type your introduction below.");
-      btnStart.disabled = false;
-      btnStart.innerHTML = "🎤 Start without Camera";
-    }
+    overlayText.textContent = "Camera offline (Speech mode active)";
   }
 }
 
@@ -325,14 +305,12 @@ function startSelfIntro() {
 
   const btnStart = document.getElementById('btnStartIntro');
   const btnStop = document.getElementById('btnStopIntro');
-  const btnToggleCam = document.getElementById('btnToggleCamera');
   const timerOverlay = document.getElementById('introTimerOverlay');
   const timerVal = document.getElementById('introTimerVal');
   const textInput = document.getElementById('selfIntroText');
 
   btnStart.classList.add('hidden');
   btnStop.classList.remove('hidden');
-  btnToggleCam.disabled = true;
   timerOverlay.classList.remove('hidden');
   textInput.value = '';
   accumulatedIntroTranscript = '';
@@ -529,10 +507,6 @@ function renderSelfIntroReport(evalData) {
       <div class="report-card-title">Self-Introduction Report Card</div>
       
       <div class="self-intro-scores">
-        <div class="score-box content-score">
-          <div class="score-label">Content & Delivery</div>
-          <div class="score-value">${evalData.contentScore}<em>/10</em></div>
-        </div>
         <div class="score-box grammar-score">
           <div class="score-label">Grammar Score</div>
           <div class="score-value">${evalData.grammarScore}<em>/10</em></div>
@@ -1219,6 +1193,16 @@ function scoreCard(label, val) {
 }
 
 function renderReport(r) {
+  // Mark step 5 as completed (solid red fill) and fill pathway progress bar to 100%
+  document.querySelectorAll('.pathway-node').forEach(node => {
+    node.classList.add('done');
+    node.classList.remove('active');
+  });
+  const pathwayFill = document.getElementById('pathwayFill');
+  if (pathwayFill) {
+    pathwayFill.style.width = "100%";
+  }
+
   const te = r.technicalEvaluation || {};
   const scoreLabels = {
     programming: 'Programming', problemSolving: 'Problem solving', communication: 'Communication',
@@ -1269,11 +1253,7 @@ function renderReport(r) {
     selfIntroSection = `
       <div class="report-section">
         <h3>Self-Introduction Assessment</h3>
-        <div class="self-intro-scores" style="max-width: 460px; margin-bottom: 16px;">
-          <div class="score-box content-score">
-            <div class="score-label">Content & Delivery</div>
-            <div class="score-value">${state.selfIntroReport.contentScore}<em>/10</em></div>
-          </div>
+        <div class="self-intro-scores" style="margin-bottom: 16px;">
           <div class="score-box grammar-score">
             <div class="score-label">Grammar Score</div>
             <div class="score-value">${state.selfIntroReport.grammarScore}<em>/10</em></div>
@@ -1297,7 +1277,10 @@ function renderReport(r) {
 
   reportBody.innerHTML = `
     <div class="report-header">
-      <div class="school">The AI School · Career Evaluation Report</div>
+      <div class="report-brand-box">
+        <img src="assets/logo.png" alt="The AI School Logo" class="report-logo-centered">
+        <div class="school">CAREER EVALUATION REPORT</div>
+      </div>
       <h1>${escapeHtml(state.student.name)}</h1>
       <div class="sub">${escapeHtml(state.student.college)} · ${new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'})}</div>
     </div>

@@ -179,8 +179,10 @@ input, textarea, select{font-size:16px;}
   padding:14px; color:var(--text); font-size:0.92rem; resize:vertical;
 }
 
-.report-header{text-align:center; margin-bottom:8px;}
-.report-header .school{font-family:var(--font-mono); font-size:0.75rem; color:var(--red); letter-spacing:0.1em; text-transform:uppercase;}
+.report-header{text-align:center; margin-bottom:12px;}
+.report-brand-box{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:8px;}
+.report-logo-centered{height:44px; width:auto; object-fit:contain;}
+.report-header .school{font-family:var(--font-mono); font-size:0.75rem; color:var(--red); letter-spacing:0.12em; text-transform:uppercase;}
 .report-header h1{font-family:var(--font-display); font-size:2rem; margin:8px 0 4px;}
 .report-header .sub{color:var(--text-faint); font-size:0.85rem;}
 .report-section{margin-top:30px; padding-top:26px; border-top:1px solid var(--border);}
@@ -419,13 +421,13 @@ input, textarea, select{font-size:16px;}
   padding-bottom: 10px;
 }
 .self-intro-scores {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 20px;
 }
-@media (max-width: 500px) {
-  .self-intro-scores { grid-template-columns: 1fr; }
+.self-intro-scores .score-box {
+  width: 100%;
+  max-width: 280px;
 }
 .score-box {
   background: var(--bg-deep);
