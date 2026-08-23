@@ -71,25 +71,28 @@ document.getElementById('btnDemoMode').onclick = () => {
 ========================================================= */
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-const MOCK_MENTOR_SCRIPT = [
-  {ack: null, q: () => `Hi ${state.student.name.split(' ')[0]}! Where do you see yourself career-wise in the next five years?`},
-  {ack: "That's a great vision.", q: () => `What keeps you excited about Computer Science?`},
-  {ack: "I like that.", q: () => `Which domain excites you most: AI/ML, Cloud, or Full Stack?`},
-  {ack: "Good to know.", q: () => `Are you aiming for placements, a startup, or higher studies?`},
-  {ack: "Thanks for sharing.", q: () => `What programming language or project are you most confident in?`},
-  {ack: "Excellent.", q: () => `What has been your biggest challenge while learning so far?`},
-  {ack: "I understand.", q: () => `What do you expect from an AI platform to help you grow?`},
-  {ack: "Thank you.", q: () => `Let's upload your resume next to continue.`}
-];
-
 function mockMentorMessage(index, lastStudentMsg) {
   if (index >= state.targetQuestions) {
-    return `Your conversation is completed. Thank you for your information. Please upload your resume below so we can analyze it next. [[INTERVIEW_COMPLETE]]`;
+    return `Your career-discovery conversation is completed! Please click "Continue to resume upload →" below to proceed. [[INTERVIEW_COMPLETE]]`;
   }
-  const item = MOCK_MENTOR_SCRIPT[Math.min(index, MOCK_MENTOR_SCRIPT.length - 1)];
-  const ackPart = item.ack ? item.ack + ' ' : '';
-  let text = ackPart + item.q();
-  return text;
+  const firstName = (state.student.name || 'Friend').split(' ')[0];
+  const college = state.student.college || 'your university';
+  const input = ((lastStudentMsg || '') + ' ' + (state.selfIntroText || '')).toLowerCase();
+
+  let ack = `That's great!`;
+  if (input.includes('java')) ack = `Java is fantastic for building robust, scalable backend systems!`;
+  else if (input.includes('python')) ack = `Python is amazing for AI, data science, and rapid application development!`;
+  else if (input.includes('react') || input.includes('node') || input.includes('web') || input.includes('html')) ack = `Full-stack web development with React & Node is an incredible domain!`;
+  else if (input.includes('0') || input.includes('dont know') || input.includes("don't know")) ack = `No worries at all, ${firstName}! Everyone starts somewhere.`;
+
+  const uniqueQuestions = [
+    `Hi ${firstName}! Welcome from ${college}. What primary programming language or tech stack do you feel most excited about?`,
+    `${ack} What is a recent project or concept you enjoyed building or learning about?`,
+    `${ack} How do you test and ensure your code is clean and reliable when working on projects?`,
+    `${ack} Looking ahead, what is your primary career goal after graduating from ${college}?`,
+    `${ack} What is one advanced skill or tool you are eager to master next?`
+  ];
+  return uniqueQuestions[Math.min(index, uniqueQuestions.length - 1)];
 }
 
 function mockParseResume(resumeText) {
@@ -247,65 +250,45 @@ function initSelfIntroStep() {
   document.getElementById('selfIntroReport').innerHTML = '';
   document.getElementById('selfIntroText').value = '';
   
-  const btnToggle = document.getElementById('btnToggleCamera');
   const btnStart = document.getElementById('btnStartIntro');
   const btnStop = document.getElementById('btnStopIntro');
   
-  btnToggle.innerHTML = "📷 Enable Camera";
-  btnToggle.classList.remove('btn-primary');
-  btnToggle.classList.add('btn-ghost');
-  btnToggle.disabled = false;
-  
   btnStart.classList.remove('hidden');
-  btnStart.disabled = true;
+  btnStart.disabled = false;
   btnStart.innerHTML = "🎤 Start Introduction";
   
   btnStop.classList.add('hidden');
   btnStop.disabled = false;
 
-  const overlay = document.getElementById('videoOverlay');
-  overlay.classList.remove('hidden');
-  document.getElementById('videoOverlayText').textContent = "Camera is offline";
-  
-  btnToggle.onclick = toggleCamera;
   btnStart.onclick = startSelfIntro;
   btnStop.onclick = stopSelfIntro;
+
+  // Auto-initialize camera stream seamlessly
+  autoStartCamera();
 }
 
-// Toggle camera stream
-async function toggleCamera() {
+// Auto-start camera stream silently
+async function autoStartCamera() {
   const video = document.getElementById('webcamVideo');
   const overlay = document.getElementById('videoOverlay');
   const overlayText = document.getElementById('videoOverlayText');
-  const btnToggle = document.getElementById('btnToggleCamera');
-  const btnStart = document.getElementById('btnStartIntro');
+  if (!video || !overlay) return;
 
   if (state.webcamStream) {
-    stopCamera();
-    btnToggle.innerHTML = "📷 Enable Camera";
-    btnToggle.classList.remove('btn-primary');
-    btnToggle.classList.add('btn-ghost');
+    overlay.classList.add('hidden');
+    return;
+  }
+
+  try {
+    overlayText.textContent = "Connecting camera...";
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    state.webcamStream = stream;
+    video.srcObject = stream;
+    overlay.classList.add('hidden');
+  } catch (err) {
+    console.warn("Camera preview notice:", err.message);
     overlay.classList.remove('hidden');
-    overlayText.textContent = "Camera is offline";
-    btnStart.disabled = true;
-  } else {
-    try {
-      overlayText.textContent = "Requesting camera access...";
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      state.webcamStream = stream;
-      video.srcObject = stream;
-      overlay.classList.add('hidden');
-      btnToggle.innerHTML = "📷 Disable Camera";
-      btnToggle.classList.remove('btn-ghost');
-      btnToggle.classList.add('btn-primary');
-      btnStart.disabled = false;
-    } catch (err) {
-      console.error(err);
-      overlayText.textContent = "Error: Camera access denied or unavailable";
-      alert("Could not access camera/microphone. Please check permissions and try again, or you can still type your introduction below.");
-      btnStart.disabled = false;
-      btnStart.innerHTML = "🎤 Start without Camera";
-    }
+    overlayText.textContent = "Camera offline (Speech mode active)";
   }
 }
 
@@ -325,14 +308,12 @@ function startSelfIntro() {
 
   const btnStart = document.getElementById('btnStartIntro');
   const btnStop = document.getElementById('btnStopIntro');
-  const btnToggleCam = document.getElementById('btnToggleCamera');
   const timerOverlay = document.getElementById('introTimerOverlay');
   const timerVal = document.getElementById('introTimerVal');
   const textInput = document.getElementById('selfIntroText');
 
   btnStart.classList.add('hidden');
   btnStop.classList.remove('hidden');
-  btnToggleCam.disabled = true;
   timerOverlay.classList.remove('hidden');
   textInput.value = '';
   accumulatedIntroTranscript = '';
@@ -529,10 +510,6 @@ function renderSelfIntroReport(evalData) {
       <div class="report-card-title">Self-Introduction Report Card</div>
       
       <div class="self-intro-scores">
-        <div class="score-box content-score">
-          <div class="score-label">Content & Delivery</div>
-          <div class="score-value">${evalData.contentScore}<em>/10</em></div>
-        </div>
         <div class="score-box grammar-score">
           <div class="score-label">Grammar Score</div>
           <div class="score-value">${evalData.grammarScore}<em>/10</em></div>
@@ -641,25 +618,40 @@ function updateChatProgress() {
   }
 }
 
-const INTERVIEW_SYSTEM_PROMPT = `You are a warm, sharp, encouraging AI career mentor at "The AI School" conducting a live career-discovery conversation with a student.
-Student details:
-- Name: \${NAME}
-- College: \${COLLEGE}
-- Self-Introduction: "\${SELF_INTRO}"
+const INTERVIEW_SYSTEM_PROMPT = `You are an elite, world-class Senior AI Career Architect & Executive Technical Mentor at "The AI School".
+You are conducting an inspiring, personalized 5-question career-discovery conversation with a student candidate using live AI completions.
 
-This is NOT a static questionnaire — you must sound like a real mentor: acknowledge what the student just said specifically, then ask one thoughtful follow-up or new question that goes deeper, strictly tailored to their self-introduction details, stated interests, and the conversation history.
+CANDIDATE PROFILE:
+- Student Name: \${NAME}
+- College/University: \${COLLEGE}
+- Self-Introduction Speech Transcript: "\${SELF_INTRO}"
 
-Ground rules:
-- Ask exactly one question per turn.
-- Never repeat a question already covered.
-- Vary your phrasing naturally.
-- Base your questions and follow-ups on the candidate's self-introduction and their answers. Dive deeper into their specific projects, skills, or career goals.
-- Keep each response extremely brief: exactly 1 to 2 sentences (at most 2 lines). Acknowledge and ask the question directly in under 30 words.
-- You are currently asking question \${CURRENT_QUESTION} of \${TARGET}. Keep the conversation going by asking a follow-up question.
-- Never ask about the resume — that comes in a later step.
-- Never generate random or irrelevant questions.`;
+THE WORLD'S BEST MENTOR BEHAVIOR ON EVERY TURN:
+1. ALWAYS GROUNDED IN SELF-INTRODUCTION & CHAT HISTORY:
+   - Read their self-introduction transcript ("\${SELF_INTRO}") and their exact previous response on every single turn.
+   - Reference their specific college (\${COLLEGE}), projects, languages, tools, or goals!
+2. LISTEN & RESPOND WITH DEEP TECHNICAL INSIGHT:
+   - Acknowledge their exact answer in 1 short line with executive technical wisdom and warm validation.
+3. UNDERSTAND CHAT SHORTHAND & BEGINNERS:
+   - "sd"/"sde" = Software Engineering, "ds"/"dsa" = Data Structures, "ml"/"ai" = AI/ML, "0"/"none" = Beginner (reassure warmly: "No worries at all! Everyone starts somewhere" and ask about basic goals).
+4. ASK INTELLIGENT, NON-GENERIC FOLLOW-UP QUESTIONS:
+   - Never ask generic template questions. Tailor every question specifically to this student.
+   - If they give a strong answer, ask a deeper architectural or system design question.
+   - If they give a short or stuck answer, adapt gently with a supportive foundational question.
+5. NO QUESTION REPETITION: Scan the chat history and NEVER repeat a question or topic already asked.
+6. STRICT 2-LINE FORMAT: Keep every mentor turn to EXACTLY 1 OR 2 SHORT SENTENCES (Maximum 30 words total).
+7. Turn context: Asking Question \${CURRENT_QUESTION} of \${TARGET}. Ask exactly one clear, personalized, high-value question.`;
 
 async function startInterview() {
+  state.questionCount = 0;
+  state.interviewComplete = false;
+  state.conversation = [];
+  chatWindow.innerHTML = '';
+  chatInput.disabled = false;
+  sendBtn.disabled = false;
+  micBtn.disabled = false;
+  chatInput.placeholder = "Type your response...";
+  document.getElementById('btnToResume').classList.add('hidden');
   updateChatProgress();
   addTyping();
   try {
@@ -674,11 +666,19 @@ async function startInterview() {
         .replace('${NAME}', state.student.name || '')
         .replace('${COLLEGE}', state.student.college || '')
         .replace('${SELF_INTRO}', state.selfIntroText || '');
+
+      const introText = (state.selfIntroText || '').trim();
+      const promptContent = introText 
+        ? `The candidate ${state.student.name} from ${state.student.college} has just completed their self-introduction speech transcript: "${introText}".
+MANDATORY REQUIREMENT FOR QUESTION 1:
+Greet them warmly by first name, specifically cite 1 or 2 exact skills, tools, or projects mentioned in their self-introduction speech transcript above, and ask your first question based DIRECTLY on what they said in 2 short lines.`
+        : `The candidate ${state.student.name} from ${state.student.college} is a computer science student. Greet them warmly by first name and ask them about the main technical project or skill area they are focusing on right now in 2 short lines.`;
+
       opening = await callGroq({
         system: sys,
         messages: [{
           role: 'user',
-          content: `The student ${state.student.name} from ${state.student.college} has just registered and completed their 2-minute self-introduction: "${state.selfIntroText}". Greet them warmly by first name, acknowledge their self-introduction, and ask your first question of the career conversation (such as their five-year career vision or their motivation for computer science).`
+          content: promptContent
         }],
         maxTokens: 400
       });
@@ -698,21 +698,22 @@ function handleMentorTurn(rawText) {
   let text = rawText;
   let done = false;
   if (text.includes('[[INTERVIEW_COMPLETE]]')) {
-    if (state.questionCount >= state.targetQuestions) {
-      done = true;
-    }
+    done = true;
     text = text.replace('[[INTERVIEW_COMPLETE]]', '').trim();
   }
   if (!text) {
-    text = "Your conversation is completed. Thank you for sharing! Please click 'Continue to resume upload →' below to proceed.";
+    text = mockMentorMessage(state.questionCount, '');
   }
   addMsg('mentor', text);
   state.conversation.push({role: 'mentor', text});
   state.questionCount++;
-  if (done || state.questionCount >= state.targetQuestions + 2) {
+  if (done || state.questionCount > state.targetQuestions) {
     state.interviewComplete = true;
     document.getElementById('btnToResume').classList.remove('hidden');
-    chatInput.disabled = true; sendBtn.disabled = true; micBtn.disabled = true;
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    micBtn.disabled = true;
+    chatInput.placeholder = "Conversation completed. Proceed to resume upload below.";
   }
   updateChatProgress();
 }
@@ -735,11 +736,8 @@ async function sendStudentMessage() {
     } else {
       let sys;
       if (state.questionCount === state.targetQuestions) {
-        sys = `You are a warm, sharp, encouraging AI career mentor at "The AI School".
-The career-discovery conversation with the student is now complete (they have answered all your ${state.targetQuestions} questions).
-Acknowledge their last response warmly in 1 or 2 sentences.
-Do NOT ask any further questions.
-Do NOT instruct them to upload a resume or output any special tokens.`;
+        const firstName = (state.student.name || 'Friend').split(' ')[0];
+        reply = `Thank you for sharing your information and career goals, ${firstName}! Your conversation is completed. Please click 'Continue to resume upload →' below to proceed to the next step. [[INTERVIEW_COMPLETE]]`;
       } else {
         sys = INTERVIEW_SYSTEM_PROMPT
           .replace('${TARGET}', state.targetQuestions)
@@ -747,22 +745,26 @@ Do NOT instruct them to upload a resume or output any special tokens.`;
           .replace('${NAME}', state.student.name || '')
           .replace('${COLLEGE}', state.student.college || '')
           .replace('${SELF_INTRO}', state.selfIntroText || '');
-      }
-      const msgs = state.conversation.map(m => ({
-        role: m.role === 'mentor' ? 'assistant' : 'user',
-        content: m.text
-      }));
-      reply = await callGroq({system: sys, messages: msgs, maxTokens: 400});
-      if (state.questionCount === state.targetQuestions) {
-        reply += '\n\nYour conversation is completed. Thank you for your information. Please upload your resume below to proceed. [[INTERVIEW_COMPLETE]]';
+
+        const historyMsgs = state.conversation.map(m => ({
+          role: m.role === 'mentor' ? 'assistant' : 'user',
+          content: m.text
+        }));
+        const msgs = [
+          {
+            role: 'user',
+            content: `Student Profile Context — Name: ${state.student.name || 'Candidate'}, College: ${state.student.college || 'N/A'}, Self-Intro Transcript: "${state.selfIntroText || ''}". Please proceed with the natural 5-question interview.`
+          },
+          ...historyMsgs
+        ];
+        reply = await callGroq({system: sys, messages: msgs, maxTokens: 400});
       }
     }
     removeTyping();
     handleMentorTurn(reply);
   } catch (e) {
     removeTyping();
-    console.warn("Groq call failed, falling back to Demo Mode:", e);
-    state.demoMode = true;
+    console.warn("Groq call transient glitch, using fallback for turn:", e);
     const reply = mockMentorMessage(state.questionCount, val);
     handleMentorTurn(reply);
   }
@@ -1219,6 +1221,16 @@ function scoreCard(label, val) {
 }
 
 function renderReport(r) {
+  // Mark step 5 as completed (solid red fill) and fill pathway progress bar to 100%
+  document.querySelectorAll('.pathway-node').forEach(node => {
+    node.classList.add('done');
+    node.classList.remove('active');
+  });
+  const pathwayFill = document.getElementById('pathwayFill');
+  if (pathwayFill) {
+    pathwayFill.style.width = "100%";
+  }
+
   const te = r.technicalEvaluation || {};
   const scoreLabels = {
     programming: 'Programming', problemSolving: 'Problem solving', communication: 'Communication',
@@ -1269,11 +1281,7 @@ function renderReport(r) {
     selfIntroSection = `
       <div class="report-section">
         <h3>Self-Introduction Assessment</h3>
-        <div class="self-intro-scores" style="max-width: 460px; margin-bottom: 16px;">
-          <div class="score-box content-score">
-            <div class="score-label">Content & Delivery</div>
-            <div class="score-value">${state.selfIntroReport.contentScore}<em>/10</em></div>
-          </div>
+        <div class="self-intro-scores" style="margin-bottom: 16px;">
           <div class="score-box grammar-score">
             <div class="score-label">Grammar Score</div>
             <div class="score-value">${state.selfIntroReport.grammarScore}<em>/10</em></div>
@@ -1297,7 +1305,10 @@ function renderReport(r) {
 
   reportBody.innerHTML = `
     <div class="report-header">
-      <div class="school">The AI School · Career Evaluation Report</div>
+      <div class="report-brand-box">
+        <img src="assets/logo.png" alt="The AI School Logo" class="report-logo-centered">
+        <div class="school">CAREER EVALUATION REPORT</div>
+      </div>
       <h1>${escapeHtml(state.student.name)}</h1>
       <div class="sub">${escapeHtml(state.student.college)} · ${new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'})}</div>
     </div>
