@@ -124,7 +124,6 @@ app.post('/api/groq', async (req, res) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: maxTokens,
-        temperature: 0.7,
         messages: chatMessages
       })
     });

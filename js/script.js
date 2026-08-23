@@ -71,28 +71,25 @@ document.getElementById('btnDemoMode').onclick = () => {
 ========================================================= */
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+const MOCK_MENTOR_SCRIPT = [
+  {ack: null, q: () => `Hi ${state.student.name.split(' ')[0]}! Where do you see yourself career-wise in the next five years?`},
+  {ack: "That's a great vision.", q: () => `What keeps you excited about Computer Science?`},
+  {ack: "I like that.", q: () => `Which domain excites you most: AI/ML, Cloud, or Full Stack?`},
+  {ack: "Good to know.", q: () => `Are you aiming for placements, a startup, or higher studies?`},
+  {ack: "Thanks for sharing.", q: () => `What programming language or project are you most confident in?`},
+  {ack: "Excellent.", q: () => `What has been your biggest challenge while learning so far?`},
+  {ack: "I understand.", q: () => `What do you expect from an AI platform to help you grow?`},
+  {ack: "Thank you.", q: () => `Let's upload your resume next to continue.`}
+];
+
 function mockMentorMessage(index, lastStudentMsg) {
   if (index >= state.targetQuestions) {
-    return `Your career-discovery conversation is completed! Please click "Continue to resume upload →" below to proceed. [[INTERVIEW_COMPLETE]]`;
+    return `Your conversation is completed. Thank you for your information. Please upload your resume below so we can analyze it next. [[INTERVIEW_COMPLETE]]`;
   }
-  const firstName = (state.student.name || 'Friend').split(' ')[0];
-  const college = state.student.college || 'your university';
-  const input = ((lastStudentMsg || '') + ' ' + (state.selfIntroText || '')).toLowerCase();
-
-  let ack = `That's great!`;
-  if (input.includes('java')) ack = `Java is fantastic for building robust, scalable backend systems!`;
-  else if (input.includes('python')) ack = `Python is amazing for AI, data science, and rapid application development!`;
-  else if (input.includes('react') || input.includes('node') || input.includes('web') || input.includes('html')) ack = `Full-stack web development with React & Node is an incredible domain!`;
-  else if (input.includes('0') || input.includes('dont know') || input.includes("don't know")) ack = `No worries at all, ${firstName}! Everyone starts somewhere.`;
-
-  const uniqueQuestions = [
-    `Hi ${firstName}! Welcome from ${college}. What primary programming language or tech stack do you feel most excited about?`,
-    `${ack} What is a recent project or concept you enjoyed building or learning about?`,
-    `${ack} How do you test and ensure your code is clean and reliable when working on projects?`,
-    `${ack} Looking ahead, what is your primary career goal after graduating from ${college}?`,
-    `${ack} What is one advanced skill or tool you are eager to master next?`
-  ];
-  return uniqueQuestions[Math.min(index, uniqueQuestions.length - 1)];
+  const item = MOCK_MENTOR_SCRIPT[Math.min(index, MOCK_MENTOR_SCRIPT.length - 1)];
+  const ackPart = item.ack ? item.ack + ' ' : '';
+  let text = ackPart + item.q();
+  return text;
 }
 
 function mockParseResume(resumeText) {
@@ -618,40 +615,25 @@ function updateChatProgress() {
   }
 }
 
-const INTERVIEW_SYSTEM_PROMPT = `You are an elite, world-class Senior AI Career Architect & Executive Technical Mentor at "The AI School".
-You are conducting an inspiring, personalized 5-question career-discovery conversation with a student candidate using live AI completions.
+const INTERVIEW_SYSTEM_PROMPT = `You are a warm, sharp, encouraging AI career mentor at "The AI School" conducting a live career-discovery conversation with a student.
+Student details:
+- Name: \${NAME}
+- College: \${COLLEGE}
+- Self-Introduction: "\${SELF_INTRO}"
 
-CANDIDATE PROFILE:
-- Student Name: \${NAME}
-- College/University: \${COLLEGE}
-- Self-Introduction Speech Transcript: "\${SELF_INTRO}"
+This is NOT a static questionnaire — you must sound like a real mentor: acknowledge what the student just said specifically, then ask one thoughtful follow-up or new question that goes deeper, strictly tailored to their self-introduction details, stated interests, and the conversation history.
 
-THE WORLD'S BEST MENTOR BEHAVIOR ON EVERY TURN:
-1. ALWAYS GROUNDED IN SELF-INTRODUCTION & CHAT HISTORY:
-   - Read their self-introduction transcript ("\${SELF_INTRO}") and their exact previous response on every single turn.
-   - Reference their specific college (\${COLLEGE}), projects, languages, tools, or goals!
-2. LISTEN & RESPOND WITH DEEP TECHNICAL INSIGHT:
-   - Acknowledge their exact answer in 1 short line with executive technical wisdom and warm validation.
-3. UNDERSTAND CHAT SHORTHAND & BEGINNERS:
-   - "sd"/"sde" = Software Engineering, "ds"/"dsa" = Data Structures, "ml"/"ai" = AI/ML, "0"/"none" = Beginner (reassure warmly: "No worries at all! Everyone starts somewhere" and ask about basic goals).
-4. ASK INTELLIGENT, NON-GENERIC FOLLOW-UP QUESTIONS:
-   - Never ask generic template questions. Tailor every question specifically to this student.
-   - If they give a strong answer, ask a deeper architectural or system design question.
-   - If they give a short or stuck answer, adapt gently with a supportive foundational question.
-5. NO QUESTION REPETITION: Scan the chat history and NEVER repeat a question or topic already asked.
-6. STRICT 2-LINE FORMAT: Keep every mentor turn to EXACTLY 1 OR 2 SHORT SENTENCES (Maximum 30 words total).
-7. Turn context: Asking Question \${CURRENT_QUESTION} of \${TARGET}. Ask exactly one clear, personalized, high-value question.`;
+Ground rules:
+- Ask exactly one question per turn.
+- Never repeat a question already covered.
+- Vary your phrasing naturally.
+- Base your questions and follow-ups on the candidate's self-introduction and their answers. Dive deeper into their specific projects, skills, or career goals.
+- Keep each response extremely brief: exactly 1 to 2 sentences (at most 2 lines). Acknowledge and ask the question directly in under 30 words.
+- You are currently asking question \${CURRENT_QUESTION} of \${TARGET}. Keep the conversation going by asking a follow-up question.
+- Never ask about the resume — that comes in a later step.
+- Never generate random or irrelevant questions.`;
 
 async function startInterview() {
-  state.questionCount = 0;
-  state.interviewComplete = false;
-  state.conversation = [];
-  chatWindow.innerHTML = '';
-  chatInput.disabled = false;
-  sendBtn.disabled = false;
-  micBtn.disabled = false;
-  chatInput.placeholder = "Type your response...";
-  document.getElementById('btnToResume').classList.add('hidden');
   updateChatProgress();
   addTyping();
   try {
@@ -666,19 +648,11 @@ async function startInterview() {
         .replace('${NAME}', state.student.name || '')
         .replace('${COLLEGE}', state.student.college || '')
         .replace('${SELF_INTRO}', state.selfIntroText || '');
-
-      const introText = (state.selfIntroText || '').trim();
-      const promptContent = introText 
-        ? `The candidate ${state.student.name} from ${state.student.college} has just completed their self-introduction speech transcript: "${introText}".
-MANDATORY REQUIREMENT FOR QUESTION 1:
-Greet them warmly by first name, specifically cite 1 or 2 exact skills, tools, or projects mentioned in their self-introduction speech transcript above, and ask your first question based DIRECTLY on what they said in 2 short lines.`
-        : `The candidate ${state.student.name} from ${state.student.college} is a computer science student. Greet them warmly by first name and ask them about the main technical project or skill area they are focusing on right now in 2 short lines.`;
-
       opening = await callGroq({
         system: sys,
         messages: [{
           role: 'user',
-          content: promptContent
+          content: `The student ${state.student.name} from ${state.student.college} has just registered and completed their 2-minute self-introduction: "${state.selfIntroText}". Greet them warmly by first name, acknowledge their self-introduction, and ask your first question of the career conversation (such as their five-year career vision or their motivation for computer science).`
         }],
         maxTokens: 400
       });
@@ -698,22 +672,21 @@ function handleMentorTurn(rawText) {
   let text = rawText;
   let done = false;
   if (text.includes('[[INTERVIEW_COMPLETE]]')) {
-    done = true;
+    if (state.questionCount >= state.targetQuestions) {
+      done = true;
+    }
     text = text.replace('[[INTERVIEW_COMPLETE]]', '').trim();
   }
   if (!text) {
-    text = mockMentorMessage(state.questionCount, '');
+    text = "Your conversation is completed. Thank you for sharing! Please click 'Continue to resume upload →' below to proceed.";
   }
   addMsg('mentor', text);
   state.conversation.push({role: 'mentor', text});
   state.questionCount++;
-  if (done || state.questionCount > state.targetQuestions) {
+  if (done || state.questionCount >= state.targetQuestions + 2) {
     state.interviewComplete = true;
     document.getElementById('btnToResume').classList.remove('hidden');
-    chatInput.disabled = true;
-    sendBtn.disabled = true;
-    micBtn.disabled = true;
-    chatInput.placeholder = "Conversation completed. Proceed to resume upload below.";
+    chatInput.disabled = true; sendBtn.disabled = true; micBtn.disabled = true;
   }
   updateChatProgress();
 }
@@ -736,8 +709,11 @@ async function sendStudentMessage() {
     } else {
       let sys;
       if (state.questionCount === state.targetQuestions) {
-        const firstName = (state.student.name || 'Friend').split(' ')[0];
-        reply = `Thank you for sharing your information and career goals, ${firstName}! Your conversation is completed. Please click 'Continue to resume upload →' below to proceed to the next step. [[INTERVIEW_COMPLETE]]`;
+        sys = `You are a warm, sharp, encouraging AI career mentor at "The AI School".
+The career-discovery conversation with the student is now complete (they have answered all your ${state.targetQuestions} questions).
+Acknowledge their last response warmly in 1 or 2 sentences.
+Do NOT ask any further questions.
+Do NOT instruct them to upload a resume or output any special tokens.`;
       } else {
         sys = INTERVIEW_SYSTEM_PROMPT
           .replace('${TARGET}', state.targetQuestions)
@@ -745,26 +721,22 @@ async function sendStudentMessage() {
           .replace('${NAME}', state.student.name || '')
           .replace('${COLLEGE}', state.student.college || '')
           .replace('${SELF_INTRO}', state.selfIntroText || '');
-
-        const historyMsgs = state.conversation.map(m => ({
-          role: m.role === 'mentor' ? 'assistant' : 'user',
-          content: m.text
-        }));
-        const msgs = [
-          {
-            role: 'user',
-            content: `Student Profile Context — Name: ${state.student.name || 'Candidate'}, College: ${state.student.college || 'N/A'}, Self-Intro Transcript: "${state.selfIntroText || ''}". Please proceed with the natural 5-question interview.`
-          },
-          ...historyMsgs
-        ];
-        reply = await callGroq({system: sys, messages: msgs, maxTokens: 400});
+      }
+      const msgs = state.conversation.map(m => ({
+        role: m.role === 'mentor' ? 'assistant' : 'user',
+        content: m.text
+      }));
+      reply = await callGroq({system: sys, messages: msgs, maxTokens: 400});
+      if (state.questionCount === state.targetQuestions) {
+        reply += '\n\nYour conversation is completed. Thank you for your information. Please upload your resume below to proceed. [[INTERVIEW_COMPLETE]]';
       }
     }
     removeTyping();
     handleMentorTurn(reply);
   } catch (e) {
     removeTyping();
-    console.warn("Groq call transient glitch, using fallback for turn:", e);
+    console.warn("Groq call failed, falling back to Demo Mode:", e);
+    state.demoMode = true;
     const reply = mockMentorMessage(state.questionCount, val);
     handleMentorTurn(reply);
   }
