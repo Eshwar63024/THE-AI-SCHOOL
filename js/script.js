@@ -615,25 +615,34 @@ function updateChatProgress() {
   }
 }
 
-const INTERVIEW_SYSTEM_PROMPT = `You are a warm, sharp, encouraging AI career mentor at "The AI School" conducting a live career-discovery conversation with a student.
-Student details:
+const INTERVIEW_SYSTEM_PROMPT = `You are a distinguished, highly perceptive, and encouraging Senior AI Career Architect and Executive Technical Mentor at "The AI School".
+You are conducting an interactive, professional 5-question career-readiness conversation with a student candidate.
+
+Candidate details:
 - Name: \${NAME}
-- College: \${COLLEGE}
-- Self-Introduction: "\${SELF_INTRO}"
+- College/University: \${COLLEGE}
+- Self-Introduction Summary: "\${SELF_INTRO}"
 
-This is NOT a static questionnaire — you must sound like a real mentor: acknowledge what the student just said specifically, then ask one thoughtful follow-up or new question that goes deeper, strictly tailored to their self-introduction details, stated interests, and the conversation history.
-
-Ground rules:
-- Ask exactly one question per turn.
-- Never repeat a question already covered.
-- Vary your phrasing naturally.
-- Base your questions and follow-ups on the candidate's self-introduction and their answers. Dive deeper into their specific projects, skills, or career goals.
-- Keep each response extremely brief: exactly 1 to 2 sentences (at most 2 lines). Acknowledge and ask the question directly in under 30 words.
-- You are currently asking question \${CURRENT_QUESTION} of \${TARGET}. Keep the conversation going by asking a follow-up question.
-- Never ask about the resume — that comes in a later step.
-- Never generate random or irrelevant questions.`;
+YOUR MENTOR PERSONALITY & STRICT FORMATTING RULES:
+1. Speak as a world-class, inspiring, articulate technical mentor.
+2. STRICT LENGTH RULE: Every response MUST be extremely concise — EXACTLY 1 OR 2 SHORT LINES (Maximum 30 words total).
+3. READ THE CANDIDATE'S RESPONSE CAREFULLY:
+   - If the candidate answers with a typo, brief text, or shorthand (e.g. "oobtj", "y", "controller"), graciously interpret their intent with warmth and guide them forward.
+   - If the candidate says "I don't know" or asks for simple questions, reassure them warmly ("No problem at all! Learning is a journey.") and ask a simpler foundational question.
+4. Never output shallow or plain questions like "What" or "Which project".
+5. You are currently asking question \${CURRENT_QUESTION} of \${TARGET}. Ask exactly one clear, high-value question.
+6. Do not repeat previous questions or ask about their resume document.`;
 
 async function startInterview() {
+  state.questionCount = 0;
+  state.interviewComplete = false;
+  state.conversation = [];
+  chatWindow.innerHTML = '';
+  chatInput.disabled = false;
+  sendBtn.disabled = false;
+  micBtn.disabled = false;
+  chatInput.placeholder = "Type your response...";
+  document.getElementById('btnToResume').classList.add('hidden');
   updateChatProgress();
   addTyping();
   try {
@@ -652,7 +661,7 @@ async function startInterview() {
         system: sys,
         messages: [{
           role: 'user',
-          content: `The student ${state.student.name} from ${state.student.college} has just registered and completed their 2-minute self-introduction: "${state.selfIntroText}". Greet them warmly by first name, acknowledge their self-introduction, and ask your first question of the career conversation (such as their five-year career vision or their motivation for computer science).`
+          content: `The student ${state.student.name} from ${state.student.college} has registered and completed their self-introduction: "${state.selfIntroText}". Greet them warmly by first name, acknowledge specific technical highlights from their self-introduction, and ask your first engaging, accessible technical/career discovery question in 2 short lines.`
         }],
         maxTokens: 400
       });
@@ -672,21 +681,22 @@ function handleMentorTurn(rawText) {
   let text = rawText;
   let done = false;
   if (text.includes('[[INTERVIEW_COMPLETE]]')) {
-    if (state.questionCount >= state.targetQuestions) {
-      done = true;
-    }
+    done = true;
     text = text.replace('[[INTERVIEW_COMPLETE]]', '').trim();
   }
   if (!text) {
-    text = "Your conversation is completed. Thank you for sharing! Please click 'Continue to resume upload →' below to proceed.";
+    text = "Your career-discovery conversation is completed! Thank you for sharing your goals. Please click 'Continue to resume upload →' below to proceed.";
   }
   addMsg('mentor', text);
   state.conversation.push({role: 'mentor', text});
   state.questionCount++;
-  if (done || state.questionCount >= state.targetQuestions + 2) {
+  if (done || state.questionCount >= state.targetQuestions) {
     state.interviewComplete = true;
     document.getElementById('btnToResume').classList.remove('hidden');
-    chatInput.disabled = true; sendBtn.disabled = true; micBtn.disabled = true;
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    micBtn.disabled = true;
+    chatInput.placeholder = "Conversation completed. Proceed to resume upload below.";
   }
   updateChatProgress();
 }
