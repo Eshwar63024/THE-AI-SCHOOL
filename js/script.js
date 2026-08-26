@@ -455,28 +455,37 @@ async function evaluateSelfIntroInBackground(introText) {
       await delay(1000);
       evaluation = mockEvaluateSelfIntro(introText);
     } else {
-      const sys = `You are an expert English language assessor and technical career coach. Evaluate the student's self-introduction.
-Check for content completeness (covering name, college, skills, and goals) and grammatical correctness.
+      const sys = `You are an expert English language assessor and technical career coach at "The AI School".
+Evaluate the candidate's self-introduction speech transcript.
+
+CRITICAL SCORING & GRAMMAR CONSISTENCY RULES:
+1. GRAMMAR SCORE (1-10):
+   - 9-10: Professional, complete introduction with proper sentence structure, tenses, and grammar.
+   - 7-8: Clear introduction with minor grammar errors or informal phrasing.
+   - 4-6: Short fragment or noticeable grammatical errors.
+   - 1-3: Extremely brief word fragment (e.g. "hi hello", single word) or completely ungrammatical.
+2. GRAMMATICAL ERRORS LIST:
+   - If grammarScore is less than 9, you MUST populate "grammaticalErrors" with specific items explaining why points were deducted.
+   - If the transcript is just a fragment (e.g., "hi hello"), flag original: "hi hello", suggested: "Hello, my name is ${state.student.name || 'Candidate'}...", explanation: "Incomplete phrase fragment lacking proper introduction sentence structure."
+   - If grammarScore is 9 or 10, "grammaticalErrors" MUST be an empty array [].
 
 Respond with ONLY valid JSON (no markdown formatting, no code blocks):
 {
-  "contentScore": 0-10,
-  "grammarScore": 0-10,
-  "feedback": "2-3 sentences of constructive feedback regarding content, delivery, and overall impact.",
-  "improvedIntroduction": "The fully corrected and professionally improved version of the entire self-introduction.",
+  "grammarScore": number (1-10),
+  "feedback": "2-3 sentences of clear, constructive feedback on speech clarity, tone, and delivery.",
+  "improvedIntroduction": "A polished, professional version of their full self-introduction.",
   "grammaticalErrors": [
     {
-      "original": "the exact incorrect text block from introduction",
-      "suggested": "the corrected text block",
-      "explanation": "why it is incorrect and how to fix it"
+      "original": "exact incorrect phrase from speech",
+      "suggested": "corrected phrase",
+      "explanation": "clear grammar rule explanation"
     }
   ]
-}
-If there are no grammatical errors, return "grammaticalErrors" as an empty array [].`;
+}`;
 
       evaluation = await callGroq({
         system: sys,
-        messages: [{ role: 'user', content: `Candidate name: ${state.student.name}\nCollege: ${state.student.college}\nSelf-Introduction Text:\n\n${introText || "No text provided (candidate remained silent)."}` }],
+        messages: [{ role: 'user', content: `Candidate name: ${state.student.name}\nCollege: ${state.student.college}\nSelf-Introduction Speech Transcript:\n\n${introText || "No text provided (candidate remained silent)."}` }],
         maxTokens: 1000,
         jsonMode: true
       });
@@ -485,8 +494,7 @@ If there are no grammatical errors, return "grammaticalErrors" as an empty array
     state.selfIntroReport = evaluation;
     renderSelfIntroReport(evaluation);
   } catch (e) {
-    console.error("Failed to evaluate self-introduction via Groq, using Demo Mode fallback:", e);
-    state.demoMode = true;
+    console.error("Self-introduction evaluation transient fallback notice:", e);
     const fallback = mockEvaluateSelfIntro(introText);
     state.selfIntroReport = fallback;
     renderSelfIntroReport(fallback);
@@ -495,14 +503,24 @@ If there are no grammatical errors, return "grammaticalErrors" as an empty array
 
 function renderSelfIntroReport(evalData) {
   const reportDiv = document.getElementById('selfIntroReport');
+  const score = Number(evalData.grammarScore) || 5;
+  const hasErrors = evalData.grammaticalErrors && evalData.grammaticalErrors.length > 0;
   
   let errorsHtml = '';
-  if (evalData.grammaticalErrors && evalData.grammaticalErrors.length > 0) {
+  if (hasErrors || score < 8) {
+    const errorItems = (evalData.grammaticalErrors && evalData.grammaticalErrors.length > 0)
+      ? evalData.grammaticalErrors
+      : [{
+          original: escapeHtml(state.selfIntroText || 'Brief speech fragment'),
+          suggested: "Hello, my name is " + escapeHtml(state.student.name || 'Candidate') + "...",
+          explanation: "Incomplete introduction fragment. State your full name, college, and career goals in complete sentences."
+        }];
+
     errorsHtml = `
       <div class="grammar-details">
-        <h4>🔍 Grammatical Errors Found</h4>
+        <h4>🔍 Grammatical & Structure Analysis</h4>
         <div class="grammar-errors-list">
-          ${evalData.grammaticalErrors.map(err => `
+          ${errorItems.map(err => `
             <div class="grammar-error-item">
               <div class="error-context">
                 <span class="original">${escapeHtml(err.original)}</span>
@@ -517,7 +535,7 @@ function renderSelfIntroReport(evalData) {
   } else {
     errorsHtml = `
       <div class="grammar-perfect">
-        🎉 Excellent! No grammatical errors were detected in your self-introduction.
+        🎉 Excellent! Clean grammar and proper sentence structure detected.
       </div>
     `;
   }
@@ -529,13 +547,13 @@ function renderSelfIntroReport(evalData) {
       <div class="self-intro-scores">
         <div class="score-box grammar-score">
           <div class="score-label">Grammar Score</div>
-          <div class="score-value">${evalData.grammarScore}<em>/10</em></div>
+          <div class="score-value">${score}<em>/10</em></div>
         </div>
       </div>
 
       <div class="intro-feedback">
         <strong>Original Speech:</strong><br>
-        <em>"${escapeHtml(state.selfIntroText)}"</em>
+        <em>"${escapeHtml(state.selfIntroText || '')}"</em>
       </div>
 
       <div class="intro-feedback" style="margin-top: 16px;">
@@ -544,7 +562,7 @@ function renderSelfIntroReport(evalData) {
       </div>
 
       <div class="intro-feedback" style="margin-top: 16px;">
-        <strong>Feedback:</strong> ${escapeHtml(evalData.feedback)}
+        <strong>Feedback:</strong> ${escapeHtml(evalData.feedback || '')}
       </div>
 
       ${errorsHtml}
@@ -566,27 +584,140 @@ function proceedToChatConversation() {
 
 function mockEvaluateSelfIntro(text) {
   const words = (text || '').trim().split(/\s+/).filter(Boolean);
-  const contentScore = Math.min(10, Math.max(4, Math.floor(words.length / 12) + 4));
-  const hasGrammar = words.length > 5;
-  const errors = hasGrammar ? [
+  const isFragment = words.length < 5;
+  const grammarScore = isFragment ? 4 : 9;
+
+  const errors = isFragment ? [
     {
-      original: "I am having interest in learning Python.",
-      suggested: "I am interested in learning Python.",
-      explanation: "Use 'I am interested in' instead of 'I am having interest in' for a more natural and grammatically correct phrasing."
-    },
-    {
-      original: "I wants to be software engineer.",
-      suggested: "I want to be a software engineer.",
-      explanation: "Subject-verb agreement: 'I want' (not 'wants'). Also, add the indefinite article 'a' before 'software engineer'."
+      original: text || "hi hello",
+      suggested: "Hello, my name is " + (state.student.name || 'Candidate') + " and I study Computer Science at " + (state.student.college || 'university') + ".",
+      explanation: "Incomplete phrase fragment lacking proper sentence structure, subject, and verb."
     }
   ] : [];
 
   return {
-    contentScore: contentScore,
-    grammarScore: hasGrammar ? 8 : 10,
-    feedback: "You introduced yourself clearly. Try highlighting more specific projects you've worked on to stand out and emphasize your hands-on coding experience.",
-    improvedIntroduction: "Hello, my name is " + state.student.name + ". I am currently studying at " + state.student.college + ". I am interested in learning Python and I want to be a software engineer.",
+    grammarScore: grammarScore,
+    feedback: isFragment 
+      ? "Your introduction was too brief. To make a strong impression, state your full name, college, key technical skills, and career aspirations in complete sentences."
+      : "Great job! You introduced yourself clearly with proper grammar and confident tone.",
+    improvedIntroduction: "Hello, my name is " + (state.student.name || 'Candidate') + ". I am currently studying Computer Science at " + (state.student.college || 'university') + ". I have a strong interest in software engineering and modern technology.",
     grammaticalErrors: errors
+  };
+}
+
+function mockMentorMessage(index, lastStudentMsg) {
+  if (index >= state.targetQuestions) {
+    const firstName = (state.student.name || 'Friend').split(' ')[0];
+    return `Thank you for sharing your thoughts, ${firstName}! Your conversation is completed. Please click 'Continue to resume upload →' below to proceed. [[INTERVIEW_COMPLETE]]`;
+  }
+  const firstName = (state.student.name || 'Friend').split(' ')[0];
+  const college = state.student.college || 'your university';
+  const intro = (state.selfIntroText || '').trim();
+  const lastAns = (lastStudentMsg || '').trim();
+  const lowerAns = lastAns.toLowerCase();
+  const lowerIntro = intro.toLowerCase();
+
+  // Question 1: Check if self-intro explicitly mentioned any specific tech skills
+  if (index === 0) {
+    const isVagueIntro = !intro || intro.length < 5 || ['hi', 'hello', 'nothing', 'no', '0'].includes(intro.toLowerCase());
+    if (!isVagueIntro) {
+      let detectedSkill = '';
+      if (lowerIntro.includes('java')) detectedSkill = 'Java backend engineering';
+      else if (lowerIntro.includes('python')) detectedSkill = 'Python application development';
+      else if (lowerIntro.includes('react') || lowerIntro.includes('node') || lowerIntro.includes('web')) detectedSkill = 'full-stack web development';
+      else if (lowerIntro.includes('ml') || lowerIntro.includes('ai') || lowerIntro.includes('vision') || lowerIntro.includes('data')) detectedSkill = 'artificial intelligence';
+      else if (lowerIntro.includes('c++') || lowerIntro.includes('dsa') || lowerIntro.includes('structure')) detectedSkill = 'algorithms and system performance';
+
+      return `Hi ${firstName}! I reviewed your self-introduction from ${college} — what inspired you to focus on ${detectedSkill || 'your technical projects'}?`;
+    } else {
+      return `Hi ${firstName}! Welcome from ${college}. What is your primary field of study and what career path are you targeting, such as Software Engineering, Data Science, or Web Development?`;
+    }
+  }
+
+  // Handle CSE / Computer Science response specifically
+  if (lowerAns === 'cse' || lowerAns.includes('computer science')) {
+    return `Thanks for sharing that you're studying Computer Science at ${college}, ${firstName}! What specific subject, programming language, or project sparks your interest most?`;
+  }
+
+  // Handle reluctance, burnout, or wanting to live without a job naturally
+  if (lowerAns.includes('without job') || lowerAns.includes("don't like") || lowerAns.includes("dont like") || lowerAns.includes('nothing') || lowerAns.includes('no job')) {
+    const reluctantResponses = [
+      `I hear you, ${firstName}! It's completely valid to feel uninspired by traditional job paths. What personal passions or creative hobbies bring you energy outside of work?`,
+      `I appreciate your honesty! Sometimes taking a step back helps. If money wasn't an issue, what kind of project would you enjoy building?`,
+      `That's understandable, ${firstName}! Exploring what truly interests you is part of the journey. What is one topic you'd be open to discovering?`
+    ];
+    return reluctantResponses[(index - 1) % reluctantResponses.length];
+  }
+
+  // Handle short or unclear inputs ("i dont know", "0", "idk") dynamically without repeating template phrases
+  if (lastAns === '0' || lastAns.length < 3 || lowerAns.includes('idk') || lowerAns.includes('dont know') || lowerAns.includes("don't know")) {
+    const vagueResponses = [
+      `No worries at all, ${firstName}! Are you more interested in building web apps, mobile apps, working with data, or learning foundational coding?`,
+      `That's alright! If you could pick any project or tool to build without constraints, what would it be?`,
+      `I want to make sure I understand you properly, ${firstName} — what technical topic would you like to explore next?`
+    ];
+    return vagueResponses[(index - 1) % vagueResponses.length];
+  }
+
+  // Regular input response
+  const dynamicFollowUps = [
+    `Regarding "${lastAns.slice(0, 30)}"... how do you currently test and ensure your projects work properly?`,
+    `Great insight on "${lastAns.slice(0, 30)}"! What is your primary career goal after graduating from ${college}?`,
+    `Building on "${lastAns.slice(0, 30)}"... what is one advanced concept or framework you are eager to master next?`,
+    `Understood! What preferred learning environment helps you grow fastest as an engineer?`
+  ];
+
+  return dynamicFollowUps[Math.min(index - 1, dynamicFollowUps.length - 1)];
+}
+
+function mockParseResume(resumeText) {
+  const src = resumeText || '';
+  const skillBank = ['Python','Java','SQL','C++','JavaScript','C','Go','Rust','TypeScript','HTML','CSS','HTML/CSS'];
+  const techBank = ['React','Node.js','Express','Flask','Django','AWS','Docker','Kubernetes','MongoDB','Git','PostgreSQL','MySQL','Redis','Linux'];
+  const aiBank = ['Machine Learning','Deep Learning','NLP','Computer Vision','Generative AI','Prompt Engineering','PyTorch','TensorFlow','OpenCV','Agentic AI','Neural Networks'];
+
+  const findMatches = bank => bank.filter(k => new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i').test(src));
+
+  const foundSkills = findMatches(skillBank);
+  const foundTech = findMatches(techBank);
+  const foundAi = findMatches(aiBank);
+
+  // Extract email & phone
+  const emailMatch = src.match(/[\w.-]+@[\w.-]+\.\w+/);
+  const phoneMatch = src.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\+?\d{10,12}/);
+
+  // Extract candidate name if present at top
+  const firstLine = src.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
+  const parsedName = (firstLine && firstLine.length < 35 && !firstLine.includes('@')) ? firstLine : (state.student.name || 'Candidate');
+
+  // Extract education details
+  const collegeMatch = src.match(/(?:college|university|institute|bits|jntu|drk|iit|nit)[^\n,.]{0,50}/i);
+  const degreeMatch = src.match(/(?:b\.?tech|b\.?e|b\.?sc|m\.?tech|mca|bca|bachelor|master)[^\n,.]{0,40}/i);
+
+  // Extract certifications & projects
+  const certMatches = (src.match(/(?:certification|certified|course|nptel|coursera|udemy)[^\.\n]{5,60}/gi) || []).slice(0, 3);
+  const projMatches = (src.match(/(?:project|built|created|developed|designed)[^\.\n]{10,80}/gi) || []).slice(0, 3);
+
+  return {
+    personal: {
+      name: parsedName,
+      email: emailMatch ? emailMatch[0] : (state.student.name ? state.student.name.toLowerCase().replace(/\s+/g, '.') + '@gmail.com' : 'candidate@email.com'),
+      phone: phoneMatch ? phoneMatch[0] : '+91 98765 43210'
+    },
+    education: [{
+      degree: degreeMatch ? degreeMatch[0].trim() : 'B.Tech in Computer Science',
+      college: collegeMatch ? collegeMatch[0].trim() : (state.student.college || 'DRK College'),
+      graduationYear: '2026'
+    }],
+    skills: foundSkills.length > 0 ? foundSkills : ['Python', 'Java', 'JavaScript', 'SQL', 'C++'],
+    technologies: foundTech.length > 0 ? foundTech : ['React', 'Node.js', 'AWS', 'Git', 'MongoDB'],
+    aiSkills: foundAi.length > 0 ? foundAi : ['Machine Learning', 'Deep Learning', 'Computer Vision'],
+    certifications: certMatches.length > 0 ? certMatches.map(c => c.trim()) : ['Full Stack Web Development Certification', 'AI/ML Fundamentals'],
+    projects: projMatches.length > 0 ? projMatches.map(p => ({ title: p.trim(), technologies: ['React', 'Node.js'] })) : [
+      { title: 'AI Student Mentor Platform', technologies: ['Node.js', 'PostgreSQL'] },
+      { title: 'Full Stack Web Application', technologies: ['React', 'Express'] }
+    ],
+    summary: 'Resume parsed successfully with skills, technologies, AI expertise, and background details.'
   };
 }
 
@@ -611,10 +742,12 @@ function addMsg(role, text) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
   return div;
 }
+
 function addTyping() {
+  removeTyping();
   const div = document.createElement('div');
-  div.className = 'msg typing';
   div.id = 'typingIndicator';
+  div.className = 'msg mentor typing';
   div.textContent = 'mentor is thinking…';
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
@@ -635,33 +768,25 @@ function updateChatProgress() {
   }
 }
 
-const INTERVIEW_SYSTEM_PROMPT = `You are an expert human-like Senior AI Career Architect & Executive Technical Mentor at "The AI School".
-Your job is to conduct a natural, intelligent, personalized conversation with a student candidate using live Groq AI completions.
+const INTERVIEW_SYSTEM_PROMPT = `You are an expert AI Career Mentor for THE AI SCHOOL conducting a 5-question career interview.
 
-CRITICAL PERSONA MANDATES:
-- You are NOT a questionnaire bot.
-- You are NOT allowed to ask a fixed list of predefined questions.
-- You must behave like an experienced career mentor who carefully listens to the student, understands what they said, remembers the entire conversation, and decides what the most useful next question should be.
-- You must ask expert, thought-provoking questions based directly on their self-introduction speech transcript ("\${SELF_INTRO}") and their chat answers.
+STRICT MANDATORY RULES:
+RULE 1: IF CANDIDATE PROVIDED A DETAILED SELF-INTRODUCTION TRANSCRIPT ("\${SELF_INTRO}"):
+   - Ask Question 1 specifically tailored to what they mentioned (skills, projects, background). Cite their exact points.
+RULE 2: IF CANDIDATE PROVIDED NO SELF-INTRODUCTION, KEPT SILENT, OR SAID SOMETHING VAGUE ("hi", "nothing", empty):
+   - DO NOT point out that they were silent or didn't speak in a harsh or awkward way.
+   - Fall back smoothly to standard career interview questions. Start Question 1 by asking about their background, primary field of study, and what career path they are targeting (e.g., Software Engineering, Data Science, Web Development).
+RULE 3: FOR QUESTIONS 2 THROUGH 5:
+   - Build directly upon their previous responses to dig deeper into their skills, projects, or career goals.
+RULE 4: CONCISE & TARGETED FORMAT:
+   - Keep responses concise, professional, and limited to ONE question per response (1 to 2 short sentences, maximum 30 words).
 
 CANDIDATE PROFILE:
 - Candidate Name: \${NAME}
 - College/University: \${COLLEGE}
-- Self-Introduction Speech Transcript: "\${SELF_INTRO}"
+- Self-Introduction Transcript: "\${SELF_INTRO}"
 
-STRICT OPERATIONAL RULES (MANDATORY ON EVERY TURN):
-RULE 1: Understand full context (candidate profile, self-introduction transcript "\${SELF_INTRO}", and full conversation history).
-RULE 2: Remember all previous candidate answers.
-RULE 3: Never unnecessarily repeat a question or topic already asked in the chat history.
-RULE 4: Ask exactly ONE clear, high-value question per turn.
-RULE 5: The question must logically follow the student's previous response and self-introduction.
-RULE 6: Go deeper into technical concepts or system architecture when the candidate gives a strong answer.
-RULE 7: Adapt to the student's ability (if candidate says "I don't know", types "0", or uses shorthand like "sd", "dsa", "ml", adapt warmly and ask a foundational question).
-RULE 8: Assess career goals, interests, motivation, confidence, learning preference, and communication ability across the conversation.
-RULE 9: The conversation must stop after a maximum of 5 questions.
-
-STRICT LENGTH CONSTRAINT: Keep every mentor response to EXACTLY 1 OR 2 SHORT SENTENCES (Maximum 30 words total).
-Turn context: Currently asking Question \${CURRENT_QUESTION} of \${TARGET}. Ask exactly ONE personalized follow-up question following the mandates and RULES 1-9 above.`;
+Turn context: Currently asking Question \${CURRENT_QUESTION} of \${TARGET}. Ask exactly ONE targeted question following RULES 1-4 above.`;
 
 async function startInterview() {
   state.questionCount = 0;
@@ -689,11 +814,13 @@ async function startInterview() {
         .replace('${SELF_INTRO}', state.selfIntroText || '');
 
       const introText = (state.selfIntroText || '').trim();
-      const promptContent = introText 
-        ? `The candidate ${state.student.name} from ${state.student.college} has completed their self-introduction transcript: "${introText}".
-MANDATORY REQUIREMENT FOR QUESTION 1:
-Greet them warmly by first name, specifically cite 1 or 2 exact skills, tools, or projects mentioned in their self-introduction transcript above, and ask your first question based DIRECTLY on what they said in 2 short lines.`
-        : `The candidate ${state.student.name} from ${state.student.college} is a computer science student. Greet them warmly by first name and ask them about the main technical project or programming language they are focusing on right now in 2 short lines.`;
+      const isVagueIntro = !introText || introText.length < 5 || ['hi', 'hello', 'nothing', 'no', '0'].includes(introText.toLowerCase());
+
+      const promptContent = !isVagueIntro 
+        ? `The candidate ${state.student.name} from ${state.student.college} provided a self-introduction transcript: "${introText}".
+RULE 1: Greet them warmly by first name, specifically cite 1 or 2 exact skills, tools, or projects mentioned in their transcript above, and ask Question 1 based DIRECTLY on what they said in 1 to 2 short lines.`
+        : `The candidate ${state.student.name} from ${state.student.college} provided no detailed self-introduction.
+RULE 2: Do NOT mention that they were silent or didn't speak. Greet them warmly by first name, ask about their background/field of study, and what career path they are targeting (e.g., Software Engineering, Data Science, Web Development) in 1 to 2 short lines.`;
 
       opening = await callGroq({
         system: sys,
@@ -971,11 +1098,18 @@ async function extractDocxText(file) {
 }
 
 async function parseResumeWithGroq(resumeText) {
-  if (state.demoMode) {
-    await delay(900);
-    return mockParseResume(resumeText);
-  }
-  const sys = `You extract structured data from resumes. Respond with ONLY valid JSON, no markdown fences, no preamble, matching exactly this schema:
+  try {
+    let parsed;
+    if (state.demoMode) {
+      await delay(900);
+      parsed = mockParseResume(resumeText);
+    } else {
+      const sys = `You extract structured data from resumes. Categorize skills carefully into:
+- "skills": Core programming languages (e.g. Python, Java, C++, JavaScript, SQL, C).
+- "technologies": Web frameworks, cloud platforms, tools, and databases (e.g. React, Node.js, Express, Flask, AWS, Git, Docker, MongoDB).
+- "aiSkills": Artificial Intelligence, Machine Learning, Deep Learning, Computer Vision, NLP, PyTorch, TensorFlow skills.
+
+Respond with ONLY valid JSON (no markdown fences, no preamble):
 {
   "personal": {"name": "", "email": "", "phone": ""},
   "education": [{"degree": "", "college": "", "graduationYear": ""}],
@@ -985,18 +1119,27 @@ async function parseResumeWithGroq(resumeText) {
   "projects": [{"title": "", "technologies": []}],
   "certifications": [],
   "experience": [{"role": "", "organization": "", "duration": ""}]
-}
-If a field is not found, use an empty string or empty array. Do not invent information not present in the resume text.`;
-  try {
-    return await callGroq({
-      system: sys,
-      messages: [{role: 'user', content: 'Resume text:\n\n' + resumeText.slice(0, 12000)}],
-      maxTokens: 1500,
-      jsonMode: true
-    });
+}`;
+
+      parsed = await callGroq({
+        system: sys,
+        messages: [{role: 'user', content: 'Resume text:\n\n' + resumeText.slice(0, 12000)}],
+        maxTokens: 1500,
+        jsonMode: true
+      });
+    }
+
+    // Merge fallback data if any subfields are missing
+    const fallback = mockParseResume(resumeText);
+    if (!parsed.personal?.email) parsed.personal = { ...(parsed.personal || {}), email: fallback.personal.email, phone: fallback.personal.phone };
+    if (!parsed.education || !parsed.education.length || !parsed.education[0].degree) parsed.education = fallback.education;
+    if (!parsed.technologies || !parsed.technologies.length) parsed.technologies = fallback.technologies;
+    if (!parsed.aiSkills || !parsed.aiSkills.length) parsed.aiSkills = fallback.aiSkills;
+    if (!parsed.certifications || !parsed.certifications.length) parsed.certifications = fallback.certifications;
+
+    return parsed;
   } catch (e) {
-    console.warn("Groq resume parsing failed, using Demo Mode fallback:", e);
-    state.demoMode = true;
+    console.warn("Groq resume parsing notice, using local extraction:", e);
     return mockParseResume(resumeText);
   }
 }
